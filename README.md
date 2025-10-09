@@ -16,6 +16,6 @@ To download the Brain Tumor Dataset:
 - Place the `download_dataset.py` script in your repository.
 - Commit and push the changes:
   ```bash
-git add download_dataset.py README.md
-git commit -m "Add dataset download script and update README"
-git push origin main
+  git add download_dataset.py README.md
+  git commit -m "Add dataset download script and update README"
+  git push origin main
