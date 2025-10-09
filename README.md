@@ -11,7 +11,7 @@ To download the Brain Tumor Dataset:
    Refer to Kaggle API documentations and download the kaggle.json file.
    Place kaggle.json in your home directory (~/.kaggle/)
 
-3. ### 3. **Add the Script to Your GitHub Repository**
+3. **Add the Script to Your GitHub Repository**
 
 - Place the `download_dataset.py` script in your repository.
 - Commit and push the changes:
