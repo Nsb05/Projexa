@@ -7,7 +7,7 @@ To download the Brain Tumor Dataset:
    ```bash
    pip install kaggle
 
-2. **Setup kaggle API credentials:
+2. **Setup kaggle API credentials**:
    Refer to Kaggle API documentations and download the kaggle.json file.
    Place kaggle.json in your home directory (~/.kaggle/)
 
