@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brain Tumor CNN Classifier</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configure Tailwind to use the Inter font -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary': '#10b981', // Emerald 500
+                        'secondary': '#f97316', // Orange 500
+                        'danger': '#ef4444', // Red 500
+                        'safe': '#22c55e', // Green 500
+                        'card-bg': '#f3f4f6', // Gray 100
+                    }
+                },
+            }
+        }
+    </script>
+    <style>
+        /* Custom CSS for visual appeal */
+        .container-shadow {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .upload-area {
+            border: 2px dashed #9ca3af; /* Gray 400 */
+            transition: border-color 0.3s ease;
+        }
+        .upload-area:hover {
+            border-color: #6366f1; /* Indigo 500 */
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans">
+
+    <div class="w-full max-w-lg bg-white rounded-xl container-shadow p-6 sm:p-8">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl font-extrabold text-gray-900 mb-2">
+                🧠 Brain Tumor Classifier
+            </h1>
+            <p class="text-sm text-gray-500">ResNet-18 Transfer Learning Model</p>
+            <div id="server-status" class="mt-3 text-xs font-medium py-1 px-3 rounded-full inline-block">
+                Checking Server...
+            </div>
+        </header>
+
+        <!-- Image Upload Section -->
+        <section class="mb-6">
+            <label for="file-upload" class="flex flex-col items-center justify-center h-40 upload-area rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors duration-200">
+                <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v8"></path></svg>
+                <p class="mt-2 text-sm text-gray-600 font-semibold">Click or Drag & Drop</p>
+                <p class="text-xs text-gray-400">Upload an MRI Image (JPG or PNG)</p>
+                <input id="file-upload" type="file" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+            </label>
+        </section>
+        
+        <!-- Preview and Results Section -->
+        <section id="results-area" class="hidden">
+            <!-- Image Preview -->
+            <div id="image-preview-container" class="mb-6 relative rounded-lg overflow-hidden border border-gray-200">
+                <img id="image-preview" src="" alt="MRI Scan Preview" class="w-full h-auto object-cover max-h-80">
+                <div id="loader" class="absolute inset-0 bg-white bg-opacity-80 flex items-center justify-center hidden">
+                    <svg class="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <span class="ml-3 text-gray-700 font-medium">Analyzing Scan...</span>
+                </div>
+            </div>
+
+            <!-- Prediction Message -->
+            <div id="result-message" class="text-center p-4 rounded-lg bg-gray-100 text-gray-600 font-semibold shadow-inner">
+                Upload an image to start classification.
+            </div>
+
+            <!-- Confidence Meter -->
+            <div class="mt-5">
+                <h3 class="text-md font-bold text-gray-700 mb-2">Model Confidence</h3>
+                <div class="relative pt-1">
+                    <div class="flex mb-2 items-center justify-between">
+                        <div>
+                            <span id="confidence-text" class="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full bg-gray-200 text-gray-600">
+                                0.00%
+                            </span>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-xs font-semibold inline-block text-gray-600">
+                                Tumor Detection
+                            </span>
+                        </div>
+                    </div>
+                    <div class="overflow-hidden h-3 mb-4 text-xs flex rounded bg-gray-200">
+                        <div id="confidence-bar" style="width: 0%" class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-safe transition-all duration-500"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+    </div>
+
+    <script>
+        // Configuration
+        const API_ENDPOINT = 'http://127.0.0.1:5000/predict';
+        const STATUS_ENDPOINT = 'http://127.0.0.1:5000/status';
+        
+        // DOM Elements
+        const serverStatus = document.getElementById('server-status');
+        const resultsArea = document.getElementById('results-area');
+        const imagePreview = document.getElementById('image-preview');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+        const loader = document.getElementById('loader');
+        const resultDiv = document.getElementById('result-message');
+        const confidenceBar = document.getElementById('confidence-bar');
+        const confidenceText = document.getElementById('confidence-text');
+        
+        // --- Core Functions ---
+
+        /**
+         * Resets the UI state for a new classification.
+         */
+        function resetApp() {
+            resultsArea.classList.add('hidden');
+            loader.classList.add('hidden');
+            resultDiv.className = 'text-center p-4 rounded-lg bg-gray-100 text-gray-600 font-semibold shadow-inner';
+            resultDiv.innerHTML = 'Upload an image to start classification.';
+            confidenceBar.style.width = '0%';
+            confidenceText.textContent = '0.00%';
+        }
+        
+        /**
+         * Displays an error message on the UI.
+         * @param {string} message The error text.
+         */
+        function showError(message) {
+            loader.classList.add('hidden');
+            resultDiv.className = 'text-center p-4 rounded-lg bg-danger-100 text-danger-700 font-semibold shadow-lg border-2 border-danger';
+            resultDiv.innerHTML = `❌ Error: ${message}`;
+            confidenceBar.style.width = '0%';
+            confidenceText.textContent = '0.00%';
+        }
+
+        /**
+         * Handles the prediction result and updates the UI.
+         * This function contains the CRITICAL FIX for displaying the correct prediction.
+         * @param {object} data The JSON response from the Flask API.
+         */
+        function showResults(data) {
+            loader.classList.add('hidden');
+            
+            // Check for an error message from the server
+            if (data.prediction.startsWith('ERROR')) {
+                showError(`Prediction failed. Server said: ${data.prediction}`);
+                return; 
+            }
+
+            // --- CRITICAL LOGIC ---
+            // The string MUST match the exact string returned by app.py's CLASSES dictionary.
+            const IS_TUMOR = data.prediction === 'Tumor Detected'; 
+            const confidence = parseFloat(data.confidence); // Guaranteed to be a number by app.py
+
+            // 1. Set the background color and message based on the prediction
+            if (IS_TUMOR) {
+                // Tumor Detected (Positive Result)
+                resultDiv.className = 'text-center p-4 rounded-lg bg-red-100 text-red-700 font-extrabold shadow-lg border-2 border-red-400';
+                resultDiv.innerHTML = `🚨 **TUMOR DETECTED!** (${data.prediction})`;
+                
+                // Update the confidence bar color to red
+                confidenceBar.className = 'h-full rounded-full bg-danger transition-all duration-500';
+            } else {
+                // No Tumor Detected (Negative Result)
+                resultDiv.className = 'text-center p-4 rounded-lg bg-green-100 text-green-700 font-extrabold shadow-lg border-2 border-green-400';
+                resultDiv.innerHTML = `✅ **NO TUMOR DETECTED.** Always consult a medical professional.`;
+                
+                // Update the confidence bar color to green
+                confidenceBar.className = 'h-full rounded-full bg-safe transition-all duration-500';
+            }
+
+            // 2. Update the confidence percentage display
+            confidenceBar.style.width = `${confidence.toFixed(2)}%`;
+            confidenceText.textContent = `${confidence.toFixed(2)}%`;
+        }
+
+
+        /**
+         * Sends the image file to the Flask API for prediction.
+         * @param {File} file The image file to upload.
+         */
+        async function runPrediction(file) {
+            resultsArea.classList.remove('hidden');
+            loader.classList.remove('hidden');
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                const response = await fetch(API_ENDPOINT, {
+                    method: 'POST',
+                    body: formData,
+                    // NOTE: Do not set Content-Type header, let fetch set it automatically
+                    // with the correct boundary for FormData.
+                });
+
+                if (!response.ok) {
+                     // Check if response is not 200 (like 400 or 500)
+                    const errorText = await response.text();
+                    showError(`Server responded with status ${response.status}. Details: ${errorText.substring(0, 50)}...`);
+                    return;
+                }
+
+                const data = await response.json();
+                
+                // The main handler function
+                showResults(data);
+
+            } catch (error) {
+                // This catch handles network errors (e.g., server down)
+                showError(`Failed to connect to backend server. Ensure the 'app.py' Flask server is running and accessible. (${error.message})`);
+                console.error('Prediction API Network Error:', error);
+            }
+        }
+
+
+        /**
+         * Handles the file upload event, displays the preview, and calls runPrediction.
+         * @param {Event} event The file change event.
+         */
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            resetApp();
+
+            if (!file) return;
+
+            if (!file.type.startsWith('image/')) {
+                showError('Please upload a valid image file (JPG or PNG).');
+                return;
+            }
+
+            // Display Image Preview
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imagePreview.src = e.target.result;
+                imagePreviewContainer.classList.remove('hidden');
+                // Start the prediction process after the image is loaded
+                runPrediction(file);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        /**
+         * Periodically checks the server status and updates the indicator.
+         */
+        async function checkServerStatus() {
+            try {
+                const response = await fetch(STATUS_ENDPOINT);
+                const data = await response.json();
+                
+                if (response.ok && data.status === 'Model Ready') {
+                    serverStatus.textContent = 'Server Status: Live';
+                    serverStatus.className = 'mt-3 text-xs font-medium py-1 px-3 rounded-full inline-block bg-safe text-white shadow-md';
+                } else {
+                    throw new Error('Server not ready.');
+                }
+            } catch (error) {
+                serverStatus.textContent = 'Server Status: Offline';
+                serverStatus.className = 'mt-3 text-xs font-medium py-1 px-3 rounded-full inline-block bg-danger text-white shadow-md';
+            }
+        }
+
+
+        // Initialize the app when the window loads
+        window.onload = function() {
+            resetApp();
+            checkServerStatus();
+            // Check status every 5 seconds
+            setInterval(checkServerStatus, 5000); 
+        };
+    </script>
+</body>
+</html>
