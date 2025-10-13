@@ -33,3 +33,11 @@ To download the Brain Tumor Dataset:
   git add download_dataset.py README.md
   git commit -m "Add dataset download script and update README"
   git push origin main
+
+## Acknowledgements
+
+-- Kaggle dataset providers
+
+-- PyTorch / torchvision team
+
+-- Inspiration from various open-source deep learning repos
