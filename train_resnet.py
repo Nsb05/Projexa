@@ -11,7 +11,6 @@ import os
 import time
 import copy
 
-# Set device for GPU acceleration if available
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
@@ -80,6 +79,7 @@ def initialize_model():
     
     # Replace the final fully connected layer (fc)
     model_ft.fc = nn.Sequential(
+        nn.Dropout(p=0.2),
         nn.Linear(num_ftrs, 1),
         nn.Sigmoid() 
     )
