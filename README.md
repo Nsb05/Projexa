@@ -34,6 +34,10 @@ To download the Brain Tumor Dataset:
   git commit -m "Add dataset download script and update README"
   git push origin main
 
+## Downloading weights for resnet 50 model:
+
+tumor_resnet50.pth file-->   https://drive.google.com/file/d/1lJ4LhbfBIJvlGG8alNp0JAymEpvwpXt9/view?usp=sharing
+
 ## Acknowledgements
 
 -- Kaggle dataset providers
