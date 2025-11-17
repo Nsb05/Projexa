@@ -1,284 +1,494 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Brain Tumor CNN Classifier</title>
-    <!-- Load Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Configure Tailwind to use the Inter font -->
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    },
-                    colors: {
-                        'primary': '#10b981', // Emerald 500
-                        'secondary': '#f97316', // Orange 500
-                        'danger': '#ef4444', // Red 500
-                        'safe': '#22c55e', // Green 500
-                        'card-bg': '#f3f4f6', // Gray 100
-                    }
-                },
-            }
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Brain Tumor Classifier — Heatmap Controls</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            primary: '#6366f1',
+            accent: '#8b5cf6',
+            soft: '#eef2ff',
+            success: '#10b981',
+            danger: '#ef4444'
+          }
         }
-    </script>
-    <style>
-        /* Custom CSS for visual appeal */
-        .container-shadow {
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-        }
-        .upload-area {
-            border: 2px dashed #9ca3af; /* Gray 400 */
-            transition: border-color 0.3s ease;
-        }
-        .upload-area:hover {
-            border-color: #6366f1; /* Indigo 500 */
-        }
-    </style>
+      }
+    }
+  </script>
+
+  <style>
+    :root { --glass-bg: rgba(255,255,255,0.36); --glass-border: rgba(255,255,255,0.45); --primary: #6366f1; }
+    [data-theme='dark'] { --glass-bg: rgba(12,12,16,0.55); --glass-border: rgba(255,255,255,0.06); --primary: #8b5cf6; }
+
+    .glass {
+      background: var(--glass-bg);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--glass-border);
+    }
+    .floating { animation: float 3s ease-in-out infinite; }
+    @keyframes float { 0%{transform:translateY(0)}50%{transform:translateY(-6px)}100%{transform:translateY(0)} }
+
+    .upload-area { border: 2px dashed rgba(99,102,241,0.2); transition: 0.28s ease; }
+    .upload-area:hover { border-color: var(--primary); background-color: #faf8ff; }
+
+    .timeline-dot { width:18px; height:18px; border-radius:999px; background:#e5e7eb; display:inline-block; transition:all .35s ease }
+    .timeline-dot.active { background:var(--primary); box-shadow:0 6px 18px rgba(99,102,241,0.25) }
+
+    .card-animate { transform-origin:center; transition: transform .45s cubic-bezier(.2,.9,.2,1), opacity .45s; opacity:0; transform: translateY(10px) scale(.98); }
+    .card-animate.in { opacity:1; transform: translateY(0) scale(1); }
+
+    .small { font-size:.82rem }
+
+    .loader-overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.8); backdrop-filter: blur(2px) }
+    [data-theme='dark'] .loader-overlay { background: rgba(0,0,0,0.55) }
+
+    .toggle { appearance:none; width:44px; height:24px; background:#e5e7eb; border-radius:999px; position:relative; transition:all .25s }
+    .toggle:checked { background: linear-gradient(90deg,var(--primary),#8b5cf6) }
+    .toggle:before { content:''; position:absolute; width:18px; height:18px; top:3px; left:3px; background:white; border-radius:999px; transition:all .25s }
+    .toggle:checked:before { transform:translateX(20px) }
+
+    /* heatmap overlay */
+    .heatmap-overlay {
+      position: absolute;
+      inset: 0;
+      object-fit: cover;
+      width: 100%;
+      height: 100%;
+      mix-blend-mode: multiply;
+      opacity: 0.75;
+      transition: opacity .2s ease, mix-blend-mode .15s ease;
+      pointer-events: none;
+      filter: saturate(1.2) contrast(1.05);
+    }
+    [data-theme='dark'] .heatmap-overlay { mix-blend-mode: screen; }
+
+    .preview-wrap { position: relative; }
+
+    /* simple slider styling fallback */
+    input[type="range"] { -webkit-appearance: none; width: 120px; height: 6px; background: #e5e7eb; border-radius: 999px; outline: none; }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 999px; background: white; box-shadow: 0 2px 6px rgba(0,0,0,0.12); border: 2px solid var(--primary); cursor: pointer; }
+  </style>
 </head>
-<body class="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans">
 
-    <div class="w-full max-w-lg bg-white rounded-xl container-shadow p-6 sm:p-8">
-        <header class="text-center mb-6">
-            <h1 class="text-3xl font-extrabold text-gray-900 mb-2">
-                🧠 Brain Tumor Classifier
-            </h1>
-            <p class="text-sm text-gray-500">ResNet-18 Transfer Learning Model</p>
-            <div id="server-status" class="mt-3 text-xs font-medium py-1 px-3 rounded-full inline-block">
-                Checking Server...
-            </div>
-        </header>
+<body class="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-50 flex items-center justify-center p-6 font-sans" data-theme="light">
+  <div class="w-full max-w-3xl glass rounded-3xl shadow-2xl p-6 sm:p-10 border">
 
-        <!-- Image Upload Section -->
-        <section class="mb-6">
-            <label for="file-upload" class="flex flex-col items-center justify-center h-40 upload-area rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors duration-200">
-                <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v8"></path></svg>
-                <p class="mt-2 text-sm text-gray-600 font-semibold">Click or Drag & Drop</p>
-                <p class="text-xs text-gray-400">Upload an MRI Image (JPG or PNG)</p>
-                <input id="file-upload" type="file" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+    <header class="flex items-start justify-between mb-6 gap-4">
+      <div>
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-800 mb-1 floating">🧠 Brain Tumor Classifier</h1>
+        <p class="text-sm text-gray-600">ResNet-18 • MRI classification • 4 classes</p>
+        <div id="server-status" class="mt-2 text-xs font-semibold py-1 px-3 rounded-full inline-block bg-gray-200 text-gray-700">Checking Server...</div>
+      </div>
+
+      <div class="flex flex-col items-end gap-3">
+        <div class="flex items-center gap-4">
+          <div class="text-sm text-gray-600 small">Animations</div>
+          <label><input id="animations-toggle" class="toggle" type="checkbox" checked /></label>
+
+          <div class="text-sm text-gray-600 small">Dark</div>
+          <label><input id="dark-toggle" class="toggle" type="checkbox" /></label>
+        </div>
+
+        <!-- Heatmap controls (appear only if heatmap present) -->
+        <div id="heatmap-controls" class="hidden w-full mt-2 bg-white/40 rounded-lg p-3 border">
+          <div class="flex items-center gap-3 justify-end">
+            <label class="flex items-center gap-2 text-sm text-gray-700">
+              <input id="heatmap-toggle" class="toggle" type="checkbox" />
+              <span class="ml-2">Show Heatmap</span>
             </label>
-        </section>
-        
-        <!-- Preview and Results Section -->
-        <section id="results-area" class="hidden">
-            <!-- Image Preview -->
-            <div id="image-preview-container" class="mb-6 relative rounded-lg overflow-hidden border border-gray-200">
-                <img id="image-preview" src="" alt="MRI Scan Preview" class="w-full h-auto object-cover max-h-80">
-                <div id="loader" class="absolute inset-0 bg-white bg-opacity-80 flex items-center justify-center hidden">
-                    <svg class="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    <span class="ml-3 text-gray-700 font-medium">Analyzing Scan...</span>
+
+            <div class="flex items-center gap-2">
+              <label for="blend-mode" class="text-sm text-gray-700">Blend</label>
+              <select id="blend-mode" class="text-sm rounded px-2 py-1 border">
+                <option value="multiply">Multiply</option>
+                <option value="screen">Screen</option>
+                <option value="overlay">Overlay</option>
+                <option value="soft-light">Soft-light</option>
+                <option value="color-dodge">Color-dodge</option>
+              </select>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <label for="opacity-range" class="text-sm text-gray-700">Opacity</label>
+              <input id="opacity-range" type="range" min="0" max="100" value="75" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Upload + Timeline Column -->
+      <section>
+        <label for="file-upload" class="upload-area flex flex-col items-center justify-center h-48 rounded-xl cursor-pointer bg-soft shadow-inner">
+          <svg class="w-12 h-12 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v8"></path></svg>
+          <p class="mt-3 text-base text-gray-700 font-bold">Click or Drag & Drop</p>
+          <p class="text-xs text-gray-500">Upload an MRI Image (JPG / PNG)</p>
+          <input id="file-upload" type="file" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+        </label>
+
+        <div class="mt-6">
+          <h4 class="text-sm font-semibold text-gray-700 mb-3">Processing Timeline</h4>
+          <div id="timeline" class="p-4 bg-white/60 rounded-xl border border-gray-100">
+            <div class="timeline flex flex-col gap-3">
+              <div class="timeline-step" data-step="0">
+                <div class="timeline-dot" id="dot-0"></div>
+                <div>
+                  <div class="timeline-label font-semibold">Uploaded</div>
+                  <div class="text-xs text-gray-500">Image received</div>
                 </div>
-            </div>
+              </div>
 
-            <!-- Prediction Message -->
-            <div id="result-message" class="text-center p-4 rounded-lg bg-gray-100 text-gray-600 font-semibold shadow-inner">
-                Upload an image to start classification.
-            </div>
-
-            <!-- Confidence Meter -->
-            <div class="mt-5">
-                <h3 class="text-md font-bold text-gray-700 mb-2">Model Confidence</h3>
-                <div class="relative pt-1">
-                    <div class="flex mb-2 items-center justify-between">
-                        <div>
-                            <span id="confidence-text" class="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full bg-gray-200 text-gray-600">
-                                0.00%
-                            </span>
-                        </div>
-                        <div class="text-right">
-                            <span class="text-xs font-semibold inline-block text-gray-600">
-                                Tumor Detection
-                            </span>
-                        </div>
-                    </div>
-                    <div class="overflow-hidden h-3 mb-4 text-xs flex rounded bg-gray-200">
-                        <div id="confidence-bar" style="width: 0%" class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-safe transition-all duration-500"></div>
-                    </div>
+              <div class="timeline-step" data-step="1">
+                <div class="timeline-dot" id="dot-1"></div>
+                <div>
+                  <div class="timeline-label font-semibold">Preprocessing</div>
+                  <div class="text-xs text-gray-500">Resizing / Normalizing</div>
                 </div>
+              </div>
+
+              <div class="timeline-step" data-step="2">
+                <div class="timeline-dot" id="dot-2"></div>
+                <div>
+                  <div class="timeline-label font-semibold">Inference</div>
+                  <div class="text-xs text-gray-500">Model prediction running</div>
+                </div>
+              </div>
+
+              <div class="timeline-step" data-step="3">
+                <div class="timeline-dot" id="dot-3"></div>
+                <div>
+                  <div class="timeline-label font-semibold">Postprocessing</div>
+                  <div class="text-xs text-gray-500">Formatting results</div>
+                </div>
+              </div>
+
+              <div class="timeline-step" data-step="4">
+                <div class="timeline-dot" id="dot-4"></div>
+                <div>
+                  <div class="timeline-label font-semibold">Done</div>
+                  <div class="text-xs text-gray-500">Results ready</div>
+                </div>
+              </div>
             </div>
-        </section>
-        
-    </div>
+          </div>
+        </div>
+      </section>
 
-    <script>
-        // Configuration
-        const API_ENDPOINT = 'http://127.0.0.1:5000/predict';
-        const STATUS_ENDPOINT = 'http://127.0.0.1:5000/status';
-        
-        // DOM Elements
-        const serverStatus = document.getElementById('server-status');
-        const resultsArea = document.getElementById('results-area');
-        const imagePreview = document.getElementById('image-preview');
-        const imagePreviewContainer = document.getElementById('image-preview-container');
-        const loader = document.getElementById('loader');
-        const resultDiv = document.getElementById('result-message');
-        const confidenceBar = document.getElementById('confidence-bar');
-        const confidenceText = document.getElementById('confidence-text');
-        
-        // --- Core Functions ---
+      <!-- Results Column -->
+      <section>
+        <div id="image-preview-container" class="relative rounded-xl overflow-hidden shadow-lg border border-gray-200 mb-4 hidden preview-wrap">
+          <img id="image-preview" src="" alt="MRI Preview" class="w-full h-auto object-cover max-h-60">
+          <!-- heatmap overlay (absolute) -->
+          <img id="heatmap-overlay" class="heatmap-overlay" src="" alt="Heatmap overlay" />
+          <div id="loader" class="loader-overlay hidden">
+            <svg class="animate-spin h-9 w-9 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <span class="ml-3 text-gray-700 font-semibold">Analyzing Scan...</span>
+          </div>
+        </div>
 
-        /**
-         * Resets the UI state for a new classification.
-         */
-        function resetApp() {
-            resultsArea.classList.add('hidden');
-            loader.classList.add('hidden');
-            resultDiv.className = 'text-center p-4 rounded-lg bg-gray-100 text-gray-600 font-semibold shadow-inner';
-            resultDiv.innerHTML = 'Upload an image to start classification.';
-            confidenceBar.style.width = '0%';
-            confidenceText.textContent = '0.00%';
-        }
-        
-        /**
-         * Displays an error message on the UI.
-         * @param {string} message The error text.
-         */
-        function showError(message) {
-            loader.classList.add('hidden');
-            resultDiv.className = 'text-center p-4 rounded-lg bg-danger-100 text-danger-700 font-semibold shadow-lg border-2 border-danger';
-            resultDiv.innerHTML = `❌ Error: ${message}`;
-            confidenceBar.style.width = '0%';
-            confidenceText.textContent = '0.00%';
-        }
+        <div id="result-message" class="text-center p-4 rounded-xl bg-white/60 text-gray-700 font-semibold shadow-inner">Upload an image to start classification.</div>
 
-        /**
-         * Handles the prediction result and updates the UI.
-         * This function contains the CRITICAL FIX for displaying the correct prediction.
-         * @param {object} data The JSON response from the Flask API.
-         */
-        function showResults(data) {
-            loader.classList.add('hidden');
-            
-            // Check for an error message from the server
-            if (data.prediction.startsWith('ERROR')) {
-                showError(`Prediction failed. Server said: ${data.prediction}`);
-                return; 
-            }
+        <div class="mt-5 grid grid-cols-1 gap-4">
+          <div id="result-card" class="p-4 rounded-xl bg-white/60 border border-gray-100 shadow card-animate">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-sm text-gray-500">Prediction</div>
+                <div id="predicted-class" class="text-lg font-bold text-gray-800">—</div>
+              </div>
+              <div class="text-right">
+                <div class="text-sm text-gray-500">Confidence</div>
+                <div id="predicted-confidence" class="text-lg font-bold text-gray-800">0%</div>
+              </div>
+            </div>
+            <div class="mt-3">
+              <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                <div id="confidence-bar" style="width:0%" class="h-full bg-primary transition-all duration-700"></div>
+              </div>
+            </div>
+          </div>
 
-            // --- CRITICAL LOGIC ---
-            // The string MUST match the exact string returned by app.py's CLASSES dictionary.
-            const IS_TUMOR = data.prediction === 'Tumor Detected'; 
-            const confidence = parseFloat(data.confidence); // Guaranteed to be a number by app.py
+          <div id="details-cards" class="grid grid-cols-1 sm:grid-cols-1 gap-4">
+            <div id="actions-card" class="p-3 rounded-xl bg-white/60 border border-gray-100 shadow card-animate">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="text-sm text-gray-500">Actions</div>
+                  <div class="text-sm text-gray-700 mt-2">Download result or re-run with another image.</div>
+                </div>
+                <div class="flex flex-col gap-2">
+                  <button id="download-btn" class="px-3 py-1 rounded-md bg-primary text-white text-sm">Download</button>
+                  <button id="reset-btn" class="px-3 py-1 rounded-md border border-gray-300 text-sm">Reset</button>
+                </div>
+              </div>
+            </div>
+          </div>
 
-            // 1. Set the background color and message based on the prediction
-            if (IS_TUMOR) {
-                // Tumor Detected (Positive Result)
-                resultDiv.className = 'text-center p-4 rounded-lg bg-red-100 text-red-700 font-extrabold shadow-lg border-2 border-red-400';
-                resultDiv.innerHTML = `🚨 **TUMOR DETECTED!** (${data.prediction})`;
-                
-                // Update the confidence bar color to red
-                confidenceBar.className = 'h-full rounded-full bg-danger transition-all duration-500';
-            } else {
-                // No Tumor Detected (Negative Result)
-                resultDiv.className = 'text-center p-4 rounded-lg bg-green-100 text-green-700 font-extrabold shadow-lg border-2 border-green-400';
-                resultDiv.innerHTML = `✅ **NO TUMOR DETECTED.** Always consult a medical professional.`;
-                
-                // Update the confidence bar color to green
-                confidenceBar.className = 'h-full rounded-full bg-safe transition-all duration-500';
-            }
+        </div>
+      </section>
+    </main>
 
-            // 2. Update the confidence percentage display
-            confidenceBar.style.width = `${confidence.toFixed(2)}%`;
-            confidenceText.textContent = `${confidence.toFixed(2)}%`;
-        }
+    <footer class="mt-6 text-center text-xs text-gray-500">Model powered by your local backend • Tip: adjust heatmap blend & opacity for best visibility</footer>
+  </div>
 
+<script>
+/* ---------- Config endpoints ---------- */
+const API_ENDPOINT = 'http://127.0.0.1:5000/predict';
+const STATUS_ENDPOINT = 'http://127.0.0.1:5000/status';
 
-        /**
-         * Sends the image file to the Flask API for prediction.
-         * @param {File} file The image file to upload.
-         */
-        async function runPrediction(file) {
-            resultsArea.classList.remove('hidden');
-            loader.classList.remove('hidden');
+/* ---------- Safe element getter ---------- */
+function $id(id) {
+  return document.getElementById(id) || null;
+}
 
-            const formData = new FormData();
-            formData.append('image', file);
+/* ---------- Elements (use $id to avoid exceptions) ---------- */
+const darkToggle = $id('dark-toggle');
+const animationsToggle = $id('animations-toggle');
+const serverStatus = $id('server-status');
 
-            try {
-                const response = await fetch(API_ENDPOINT, {
-                    method: 'POST',
-                    body: formData,
-                    // NOTE: Do not set Content-Type header, let fetch set it automatically
-                    // with the correct boundary for FormData.
-                });
+const imagePreview = $id('image-preview');
+const imagePreviewContainer = $id('image-preview-container');
+const loader = $id('loader');
+const resultDiv = $id('result-message');
+const confidenceBar = $id('confidence-bar');
+const confidenceText = $id('predicted-confidence');
+const classText = $id('predicted-class');
+const explainText = $id('explain-text');
+const resultCard = $id('result-card');
+const downloadBtn = $id('download-btn');
+const resetBtn = $id('reset-btn');
 
-                if (!response.ok) {
-                     // Check if response is not 200 (like 400 or 500)
-                    const errorText = await response.text();
-                    showError(`Server responded with status ${response.status}. Details: ${errorText.substring(0, 50)}...`);
-                    return;
-                }
+const heatmapControls = $id('heatmap-controls');
+const heatmapToggle = $id('heatmap-toggle');
+const blendModeSelect = $id('blend-mode');
+const opacityRange = $id('opacity-range');
+const heatmapOverlay = $id('heatmap-overlay');
 
-                const data = await response.json();
-                
-                // The main handler function
-                showResults(data);
+const totalSteps = 5;
 
-            } catch (error) {
-                // This catch handles network errors (e.g., server down)
-                showError(`Failed to connect to backend server. Ensure the 'app.py' Flask server is running and accessible. (${error.message})`);
-                console.error('Prediction API Network Error:', error);
-            }
-        }
+/* ---------- Helpers ---------- */
+function safeSetText(el, txt) { if (el) el.textContent = txt; }
+function safeSetHTML(el, html) { if (el) el.innerHTML = html; }
+function safeAddClass(el, cls) { if (el) el.classList.add(cls); }
+function safeRemoveClass(el, cls) { if (el) el.classList.remove(cls); }
 
+/* ---------- Timeline helpers ---------- */
+function setTimelineStep(step) {
+  for (let i=0; i<totalSteps; i++) {
+    const dot = $id(`dot-${i}`);
+    if (!dot) continue;
+    if (i <= step) dot.classList.add('active'); else dot.classList.remove('active');
+  }
+}
 
-        /**
-         * Handles the file upload event, displays the preview, and calls runPrediction.
-         * @param {Event} event The file change event.
-         */
-        function handleImageUpload(event) {
-            const file = event.target.files[0];
-            resetApp();
+/* ---------- Animations ---------- */
+function applyAnimations(enabled) {
+  const cards = document.querySelectorAll('.card-animate');
+  cards.forEach((c, idx) => {
+    c.classList.remove('in');
+    if (enabled) setTimeout(()=>c.classList.add('in'), 80*idx);
+    else c.classList.add('in');
+  });
+}
+if (animationsToggle) {
+  animationsToggle.addEventListener('change', (e)=>{
+    localStorage.setItem('animationsEnabled', e.target.checked ? '1' : '0');
+    applyAnimations(e.target.checked);
+  });
+}
 
-            if (!file) return;
+/* ---------- Dark mode ---------- */
+function applyDark(enabled) {
+  document.documentElement.setAttribute('data-theme', enabled ? 'dark' : 'light');
+  localStorage.setItem('darkMode', enabled ? '1' : '0');
+  if (enabled) document.body.style.background = 'linear-gradient(180deg,#0b1020,#1a1b2b)';
+  else document.body.style.background = '';
+}
+if (darkToggle) darkToggle.addEventListener('change', (e)=> applyDark(e.target.checked));
 
-            if (!file.type.startsWith('image/')) {
-                showError('Please upload a valid image file (JPG or PNG).');
-                return;
-            }
+/* ---------- Heatmap prefs ---------- */
+function loadHeatmapPrefs() {
+  if (!blendModeSelect || !opacityRange || !heatmapOverlay) return;
+  const blend = localStorage.getItem('heatmapBlend') || 'multiply';
+  const op = parseInt(localStorage.getItem('heatmapOpacity') || '75', 10);
+  blendModeSelect.value = blend;
+  opacityRange.value = op;
+  heatmapOverlay.style.mixBlendMode = blend;
+  heatmapOverlay.style.opacity = (op/100).toString();
+}
+if (blendModeSelect) blendModeSelect.addEventListener('change', () => {
+  if (!heatmapOverlay) return;
+  const mode = blendModeSelect.value;
+  heatmapOverlay.style.mixBlendMode = mode;
+  localStorage.setItem('heatmapBlend', mode);
+});
+if (opacityRange) opacityRange.addEventListener('input', () => {
+  if (!heatmapOverlay) return;
+  const v = parseInt(opacityRange.value, 10);
+  heatmapOverlay.style.opacity = (v/100).toString();
+  localStorage.setItem('heatmapOpacity', v.toString());
+});
+if (heatmapToggle) heatmapToggle.addEventListener('change', () => {
+  if (!heatmapOverlay || !opacityRange) return;
+  heatmapOverlay.style.opacity = heatmapToggle.checked ? (opacityRange.value/100).toString() : '0';
+});
 
-            // Display Image Preview
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                imagePreview.src = e.target.result;
-                imagePreviewContainer.classList.remove('hidden');
-                // Start the prediction process after the image is loaded
-                runPrediction(file);
-            };
-            reader.readAsDataURL(file);
-        }
+/* ---------- Init on DOM ready ---------- */
+window.addEventListener('DOMContentLoaded', ()=>{
+  const dark = localStorage.getItem('darkMode') === '1';
+  if (darkToggle) { darkToggle.checked = dark; applyDark(dark); }
+  const anim = localStorage.getItem('animationsEnabled') !== '0';
+  if (animationsToggle) { animationsToggle.checked = anim; applyAnimations(anim); }
 
-        /**
-         * Periodically checks the server status and updates the indicator.
-         */
-        async function checkServerStatus() {
-            try {
-                const response = await fetch(STATUS_ENDPOINT);
-                const data = await response.json();
-                
-                if (response.ok && data.status === 'Model Ready') {
-                    serverStatus.textContent = 'Server Status: Live';
-                    serverStatus.className = 'mt-3 text-xs font-medium py-1 px-3 rounded-full inline-block bg-safe text-white shadow-md';
-                } else {
-                    throw new Error('Server not ready.');
-                }
-            } catch (error) {
-                serverStatus.textContent = 'Server Status: Offline';
-                serverStatus.className = 'mt-3 text-xs font-medium py-1 px-3 rounded-full inline-block bg-danger text-white shadow-md';
-            }
-        }
+  loadHeatmapPrefs();
 
+  resetApp();
+  checkServerStatus();
+  setInterval(checkServerStatus, 6000);
 
-        // Initialize the app when the window loads
-        window.onload = function() {
-            resetApp();
-            checkServerStatus();
-            // Check status every 5 seconds
-            setInterval(checkServerStatus, 5000); 
-        };
-    </script>
+  // safe event listeners for download/reset buttons
+  if (resetBtn) resetBtn.addEventListener('click', resetApp);
+  if (downloadBtn) downloadBtn.addEventListener('click', ()=>{
+    const txt = `Prediction: ${classText ? classText.textContent : '—'}\nConfidence: ${confidenceText ? confidenceText.textContent : '—'}`;
+    const blob = new Blob([txt], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'prediction.txt'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  });
+});
+
+/* ---------- UI state helpers ---------- */
+function resetApp() {
+  if (imagePreviewContainer) imagePreviewContainer.classList.add('hidden');
+  if (loader) loader.classList.add('hidden');
+  if (resultDiv) { resultDiv.className = 'text-center p-4 rounded-xl bg-white/60 text-gray-700 font-semibold shadow-inner'; resultDiv.innerHTML = 'Upload an image to start classification.'; }
+  if (confidenceBar) confidenceBar.style.width = '0%';
+  if (confidenceText) confidenceText.textContent = '0%';
+  if (classText) classText.textContent = '—';
+  if (heatmapOverlay) { heatmapOverlay.src = ''; heatmapOverlay.style.opacity = '0'; }
+  if (heatmapToggle) heatmapToggle.checked = false;
+  if (heatmapControls) safeAddClass(heatmapControls, 'hidden');
+  setTimelineStep(0);
+  applyAnimations((animationsToggle && animationsToggle.checked) || false);
+}
+
+function showError(message) {
+  if (loader) loader.classList.add('hidden');
+  if (resultDiv) { resultDiv.className = 'text-center p-4 rounded-xl bg-red-100 text-red-700 font-extrabold shadow-lg border-2 border-red-300'; resultDiv.innerHTML = `❌ Error: ${message}`; }
+  if (confidenceBar) confidenceBar.style.width = '0%';
+  if (confidenceText) confidenceText.textContent = '0%';
+  if (classText) classText.textContent = '—';
+  if (heatmapOverlay) { heatmapOverlay.src = ''; heatmapOverlay.style.opacity = '0'; }
+  if (heatmapControls) safeAddClass(heatmapControls, 'hidden');
+  setTimelineStep(0);
+}
+
+/* ---------- Display result ---------- */
+function showResults(data) {
+  if (loader) loader.classList.add('hidden');
+  setTimelineStep(4);
+
+  if (!data || (data.prediction && data.prediction.startsWith && data.prediction.startsWith('ERROR'))) {
+    showError(`Prediction failed. Server said: ${data ? data.prediction : 'No response'}`);
+    return;
+  }
+
+  const prediction = data.prediction || 'Unknown';
+  const confidence = parseFloat(data.confidence || 0);
+
+  if (classText) classText.textContent = prediction;
+  if (confidenceBar) confidenceBar.style.width = `${Math.min(Math.max(confidence, 0), 100).toFixed(2)}%`;
+  if (confidenceText) confidenceText.textContent = `${Math.min(Math.max(confidence, 0), 100).toFixed(2)}%`;
+
+  if (resultDiv) {
+    resultDiv.className = 'text-center p-4 rounded-xl bg-white/70 text-gray-800 font-extrabold shadow-lg border';
+    if (prediction === 'No Tumor') resultDiv.innerHTML = `✅ <strong>No Tumor Detected</strong>`;
+    else resultDiv.innerHTML = `🚨 <strong>Tumor Detected:</strong> ${prediction}`;
+  }
+
+  if (explainText) explainText.textContent = data.explanation || 'Model returned labels and confidence. Enable heatmap to view Grad-CAM overlay if available.';
+  applyAnimations((animationsToggle && animationsToggle.checked) || false);
+
+  // heatmap handling
+  if (data.heatmap && heatmapOverlay) {
+    heatmapOverlay.src = data.heatmap;
+    if (heatmapControls) safeRemoveClass(heatmapControls, 'hidden');
+    loadHeatmapPrefs();
+    if (heatmapToggle) { heatmapToggle.checked = true; heatmapOverlay.style.opacity = (opacityRange ? opacityRange.value/100 : 0.75).toString(); }
+    if (blendModeSelect) heatmapOverlay.style.mixBlendMode = blendModeSelect.value || 'multiply';
+  } else {
+    if (heatmapOverlay) { heatmapOverlay.src = ''; heatmapOverlay.style.opacity = '0'; }
+    if (heatmapControls) safeAddClass(heatmapControls, 'hidden');
+  }
+}
+
+/* ---------- Prediction flow ---------- */
+async function runPrediction(file) {
+  if (imagePreviewContainer) imagePreviewContainer.classList.remove('hidden');
+  if (loader) loader.classList.remove('hidden');
+  setTimelineStep(0);
+
+  try {
+    setTimelineStep(0);
+    await new Promise(r=>setTimeout(r, 200));
+    setTimelineStep(1);
+    await new Promise(r=>setTimeout(r, 450));
+
+    const formData = new FormData(); formData.append('image', file);
+    setTimelineStep(2);
+    const response = await fetch(API_ENDPOINT, { method: 'POST', body: formData });
+
+    if (!response.ok) {
+      const txt = await response.text();
+      showError(`Server responded ${response.status}. ${txt.substring(0,120)}...`);
+      return;
+    }
+
+    setTimelineStep(3);
+    const data = await response.json();
+    await new Promise(r=>setTimeout(r, 300));
+    showResults(data);
+
+  } catch (err) {
+    showError(`Failed to connect to backend server. (${err.message})`);
+    console.error('Prediction API Network Error:', err);
+  }
+}
+
+/* ---------- File input handler ---------- */
+function handleImageUpload(event) {
+  const file = event.target.files && event.target.files[0];
+  resetApp();
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { showError('Please upload an image file.'); return; }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    if (imagePreview) imagePreview.src = e.target.result;
+    if (imagePreviewContainer) imagePreviewContainer.classList.remove('hidden');
+    runPrediction(file);
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ---------- Server status (safe) ---------- */
+async function checkServerStatus() {
+  try {
+    const response = await fetch(STATUS_ENDPOINT);
+    const data = await response.json();
+    if (response.ok && data.status === 'Model Ready') {
+      if (serverStatus) { serverStatus.textContent = 'Server Status: Live'; serverStatus.className = 'mt-2 text-xs font-semibold py-1 px-3 rounded-full inline-block bg-success text-white shadow-md'; }
+    } else throw new Error('Server not ready');
+  } catch (err) {
+    if (serverStatus) { serverStatus.textContent = 'Server Status: Offline'; serverStatus.className = 'mt-2 text-xs font-semibold py-1 px-3 rounded-full inline-block bg-red-500 text-white shadow-md'; }
+  }
+}
+
+</script>
 </body>
 </html>
