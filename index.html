@@ -3,19 +3,25 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Brain Tumor Classifier — Heatmap Controls</title>
+  <title>Brain Tumor MRI Classifier — Clinical View</title>
+
+  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- jsPDF for PDF generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
   <script>
     tailwind.config = {
       theme: {
         extend: {
           fontFamily: { sans: ['Inter', 'sans-serif'] },
           colors: {
-            primary: '#6366f1',
-            accent: '#8b5cf6',
+            primary: '#3b82f6',
+            accent: '#6366f1',
             soft: '#eef2ff',
-            success: '#10b981',
-            danger: '#ef4444'
+            success: '#16a34a',
+            danger: '#dc2626'
           }
         }
       }
@@ -23,8 +29,39 @@
   </script>
 
   <style>
-    :root { --glass-bg: rgba(255,255,255,0.36); --glass-border: rgba(255,255,255,0.45); --primary: #6366f1; }
-    [data-theme='dark'] { --glass-bg: rgba(12,12,16,0.55); --glass-border: rgba(255,255,255,0.06); --primary: #8b5cf6; }
+    :root { --glass-bg: rgba(255,255,255,0.36); --glass-border: rgba(255,255,255,0.45); --primary: #3b82f6; }
+    [data-theme='dark'] { --glass-bg: rgba(12,12,16,0.55); --glass-border: rgba(255,255,255,0.06); --primary: #6366f1; }
+
+    /* Soft MRI / hospital room style background */
+    /* Clean medical gradient background (no external images) */
+    body {
+      position: relative;
+      min-height: 100vh;
+      background-image:
+        radial-gradient(circle at top left, rgba(59,130,246,0.22), transparent 55%),
+        radial-gradient(circle at bottom right, rgba(15,23,42,0.32), transparent 55%),
+        linear-gradient(135deg, #eef3ff, #f9fafb);
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+      background-repeat: no-repeat;
+    }
+
+    /* Dark mode background variant */
+    html[data-theme='dark'] body.dark-bg {
+      background-image:
+        radial-gradient(circle at top left, rgba(59,130,246,0.35), transparent 55%),
+        radial-gradient(circle at bottom right, rgba(15,23,42,0.85), transparent 55%),
+        linear-gradient(180deg,#020617,#020617);
+      background-size: cover;
+      background-position: center;
+    }
+
+    /* Improve heading visibility in dark mode */
+    [data-theme='dark'] .page-title {
+      color: #e5edff; /* light, clinic-like */
+      text-shadow: 0 0 10px rgba(15, 23, 42, 0.85);
+    }
 
     .glass {
       background: var(--glass-bg);
@@ -35,22 +72,22 @@
     .floating { animation: float 3s ease-in-out infinite; }
     @keyframes float { 0%{transform:translateY(0)}50%{transform:translateY(-6px)}100%{transform:translateY(0)} }
 
-    .upload-area { border: 2px dashed rgba(99,102,241,0.2); transition: 0.28s ease; }
-    .upload-area:hover { border-color: var(--primary); background-color: #faf8ff; }
+    .upload-area { border: 2px dashed rgba(59,130,246,0.25); transition: 0.28s ease; }
+    .upload-area:hover { border-color: var(--primary); background-color: #f3f4ff; }
 
     .timeline-dot { width:18px; height:18px; border-radius:999px; background:#e5e7eb; display:inline-block; transition:all .35s ease }
-    .timeline-dot.active { background:var(--primary); box-shadow:0 6px 18px rgba(99,102,241,0.25) }
+    .timeline-dot.active { background:var(--primary); box-shadow:0 6px 18px rgba(59,130,246,0.25) }
 
     .card-animate { transform-origin:center; transition: transform .45s cubic-bezier(.2,.9,.2,1), opacity .45s; opacity:0; transform: translateY(10px) scale(.98); }
     .card-animate.in { opacity:1; transform: translateY(0) scale(1); }
 
     .small { font-size:.82rem }
 
-    .loader-overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.8); backdrop-filter: blur(2px) }
+    .loader-overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.84); backdrop-filter: blur(2px) }
     [data-theme='dark'] .loader-overlay { background: rgba(0,0,0,0.55) }
 
     .toggle { appearance:none; width:44px; height:24px; background:#e5e7eb; border-radius:999px; position:relative; transition:all .25s }
-    .toggle:checked { background: linear-gradient(90deg,var(--primary),#8b5cf6) }
+    .toggle:checked { background: linear-gradient(90deg,var(--primary),#6366f1) }
     .toggle:before { content:''; position:absolute; width:18px; height:18px; top:3px; left:3px; background:white; border-radius:999px; transition:all .25s }
     .toggle:checked:before { transform:translateX(20px) }
 
@@ -77,14 +114,21 @@
   </style>
 </head>
 
-<body class="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-50 flex items-center justify-center p-6 font-sans" data-theme="light">
+<body class="min-h-screen flex items-center justify-center p-6 font-sans" data-theme="light">
   <div class="w-full max-w-3xl glass rounded-3xl shadow-2xl p-6 sm:p-10 border">
 
     <header class="flex items-start justify-between mb-6 gap-4">
       <div>
-        <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-800 mb-1 floating">🧠 Brain Tumor Classifier</h1>
-        <p class="text-sm text-gray-600">ResNet-18 • MRI classification • 4 classes</p>
-        <div id="server-status" class="mt-2 text-xs font-semibold py-1 px-3 rounded-full inline-block bg-gray-200 text-gray-700">Checking Server...</div>
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-slate-900 mb-1 floating page-title">
+          Brain Tumor MRI Classifier
+        </h1>
+
+        <p class="text-xs sm:text-sm text-slate-600">
+          Deep learning–based decision support · ResNet-18 · 4 output categories (Glioma, Meningioma, Pituitary, No Tumor)
+        </p>
+        <div id="server-status" class="mt-2 text-xs font-semibold py-1 px-3 rounded-full inline-block bg-gray-200 text-gray-700">
+          Checking model status…
+        </div>
       </div>
 
       <div class="flex flex-col items-end gap-3">
@@ -98,10 +142,10 @@
 
         <!-- Heatmap controls (appear only if heatmap present) -->
         <div id="heatmap-controls" class="hidden w-full mt-2 bg-white/40 rounded-lg p-3 border">
-          <div class="flex items-center gap-3 justify-end">
+          <div class="flex items-center gap-3 justify-end flex-wrap">
             <label class="flex items-center gap-2 text-sm text-gray-700">
               <input id="heatmap-toggle" class="toggle" type="checkbox" />
-              <span class="ml-2">Show Heatmap</span>
+              <span class="ml-1">Show attention heatmap</span>
             </label>
 
             <div class="flex items-center gap-2">
@@ -126,55 +170,65 @@
 
     <main class="grid grid-cols-1 md:grid-cols-2 gap-6">
       <!-- Upload + Timeline Column -->
-      <section>
+      <section aria-label="Input and workflow">
         <label for="file-upload" class="upload-area flex flex-col items-center justify-center h-48 rounded-xl cursor-pointer bg-soft shadow-inner">
-          <svg class="w-12 h-12 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v8"></path></svg>
-          <p class="mt-3 text-base text-gray-700 font-bold">Click or Drag & Drop</p>
-          <p class="text-xs text-gray-500">Upload an MRI Image (JPG / PNG)</p>
+          <svg class="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v8">
+            </path>
+          </svg>
+          <p class="mt-3 text-base text-slate-800 font-semibold">
+            Upload brain MRI scan
+          </p>
+          <p class="text-xs text-gray-500 text-center max-w-xs mt-1">
+            Use an anonymized axial brain MRI (JPG / PNG). This tool is intended for research and educational use only.
+          </p>
           <input id="file-upload" type="file" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
         </label>
 
         <div class="mt-6">
-          <h4 class="text-sm font-semibold text-gray-700 mb-3">Processing Timeline</h4>
-          <div id="timeline" class="p-4 bg-white/60 rounded-xl border border-gray-100">
+          <h4 class="text-sm font-semibold text-gray-700 mb-3">
+            Analysis workflow
+          </h4>
+          <div id="timeline" class="p-4 bg-white/70 rounded-xl border border-gray-100">
             <div class="timeline flex flex-col gap-3">
-              <div class="timeline-step" data-step="0">
+              <div class="timeline-step flex items-center gap-3" data-step="0">
                 <div class="timeline-dot" id="dot-0"></div>
                 <div>
-                  <div class="timeline-label font-semibold">Uploaded</div>
-                  <div class="text-xs text-gray-500">Image received</div>
+                  <div class="timeline-label font-semibold text-sm">Step 1 – Image received</div>
+                  <div class="text-xs text-gray-500">MRI file successfully uploaded to the server.</div>
                 </div>
               </div>
 
-              <div class="timeline-step" data-step="1">
+              <div class="timeline-step flex items-center gap-3" data-step="1">
                 <div class="timeline-dot" id="dot-1"></div>
                 <div>
-                  <div class="timeline-label font-semibold">Preprocessing</div>
-                  <div class="text-xs text-gray-500">Resizing / Normalizing</div>
+                  <div class="timeline-label font-semibold text-sm">Step 2 – Pre-processing</div>
+                  <div class="text-xs text-gray-500">Resizing, normalization and tensor preparation.</div>
                 </div>
               </div>
 
-              <div class="timeline-step" data-step="2">
+              <div class="timeline-step flex items-center gap-3" data-step="2">
                 <div class="timeline-dot" id="dot-2"></div>
                 <div>
-                  <div class="timeline-label font-semibold">Inference</div>
-                  <div class="text-xs text-gray-500">Model prediction running</div>
+                  <div class="timeline-label font-semibold text-sm">Step 3 – Model inference</div>
+                  <div class="text-xs text-gray-500">Deep neural network forward pass.</div>
                 </div>
               </div>
 
-              <div class="timeline-step" data-step="3">
+              <div class="timeline-step flex items-center gap-3" data-step="3">
                 <div class="timeline-dot" id="dot-3"></div>
                 <div>
-                  <div class="timeline-label font-semibold">Postprocessing</div>
-                  <div class="text-xs text-gray-500">Formatting results</div>
+                  <div class="timeline-label font-semibold text-sm">Step 4 – Post-processing</div>
+                  <div class="text-xs text-gray-500">Formatting probabilities and class labels.</div>
                 </div>
               </div>
 
-              <div class="timeline-step" data-step="4">
+              <div class="timeline-step flex items-center gap-3" data-step="4">
                 <div class="timeline-dot" id="dot-4"></div>
                 <div>
-                  <div class="timeline-label font-semibold">Done</div>
-                  <div class="text-xs text-gray-500">Results ready</div>
+                  <div class="timeline-label font-semibold text-sm">Step 5 – Output ready</div>
+                  <div class="text-xs text-gray-500">Summary of model output and optional heatmap visualization.</div>
                 </div>
               </div>
             </div>
@@ -183,58 +237,106 @@
       </section>
 
       <!-- Results Column -->
-      <section>
+      <section aria-label="Model output">
         <div id="image-preview-container" class="relative rounded-xl overflow-hidden shadow-lg border border-gray-200 mb-4 hidden preview-wrap">
-          <img id="image-preview" src="" alt="MRI Preview" class="w-full h-auto object-cover max-h-60">
+          <img id="image-preview" src="" alt="Uploaded brain MRI" class="w-full h-auto object-cover max-h-60">
           <!-- heatmap overlay (absolute) -->
-          <img id="heatmap-overlay" class="heatmap-overlay" src="" alt="Heatmap overlay" />
+          <img id="heatmap-overlay" class="heatmap-overlay" src="" alt="Model attention heatmap" />
           <div id="loader" class="loader-overlay hidden">
-            <svg class="animate-spin h-9 w-9 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            <span class="ml-3 text-gray-700 font-semibold">Analyzing Scan...</span>
+            <svg class="animate-spin h-9 w-9 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291
+                       A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+              </path>
+            </svg>
+            <span class="ml-3 text-sm text-slate-800 font-semibold">Running model inference…</span>
           </div>
         </div>
 
-        <div id="result-message" class="text-center p-4 rounded-xl bg-white/60 text-gray-700 font-semibold shadow-inner">Upload an image to start classification.</div>
+        <div id="result-message" class="text-center p-4 rounded-xl bg-white/70 text-slate-800 font-semibold shadow-inner text-sm">
+          Upload a brain MRI scan to view the model’s output.
+        </div>
 
         <div class="mt-5 grid grid-cols-1 gap-4">
-          <div id="result-card" class="p-4 rounded-xl bg-white/60 border border-gray-100 shadow card-animate">
-            <div class="flex items-center justify-between">
+          <!-- Primary prediction card -->
+          <div id="result-card" class="p-4 rounded-xl bg-white/80 border border-gray-100 shadow card-animate">
+            <div class="flex items-center justify-between gap-4">
               <div>
-                <div class="text-sm text-gray-500">Prediction</div>
-                <div id="predicted-class" class="text-lg font-bold text-gray-800">—</div>
+                <div class="text-xs text-gray-500 uppercase tracking-wide">
+                  Predicted category
+                </div>
+                <div id="predicted-class" class="text-lg font-bold text-slate-900 mt-1">
+                  —
+                </div>
               </div>
               <div class="text-right">
-                <div class="text-sm text-gray-500">Confidence</div>
-                <div id="predicted-confidence" class="text-lg font-bold text-gray-800">0%</div>
+                <div class="text-xs text-gray-500 uppercase tracking-wide">
+                  Model confidence
+                </div>
+                <div id="predicted-confidence" class="text-lg font-bold text-slate-900 mt-1">
+                  0%
+                </div>
               </div>
             </div>
             <div class="mt-3">
               <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
                 <div id="confidence-bar" style="width:0%" class="h-full bg-primary transition-all duration-700"></div>
               </div>
+              <p class="mt-2 text-[11px] text-gray-500 leading-snug">
+                Confidence values reflect the model’s internal probability estimates and
+                do not directly correspond to clinical risk. Please interpret in the
+                context of the full imaging study and clinical findings.
+              </p>
             </div>
           </div>
 
           <div id="details-cards" class="grid grid-cols-1 sm:grid-cols-1 gap-4">
-            <div id="actions-card" class="p-3 rounded-xl bg-white/60 border border-gray-100 shadow card-animate">
-              <div class="flex items-center justify-between">
-                <div>
-                  <div class="text-sm text-gray-500">Actions</div>
-                  <div class="text-sm text-gray-700 mt-2">Download result or re-run with another image.</div>
+            <!-- Actions -->
+            <div id="actions-card" class="p-3 rounded-xl bg-white/80 border border-gray-100 shadow card-animate">
+              <div class="flex items-center justify-between gap-4">
+                <div class="max-w-xs">
+                  <div class="text-xs text-gray-500 uppercase tracking-wide">
+                    Actions
+                  </div>
+                  <div class="text-xs text-gray-600 mt-2 leading-snug">
+                    Export the current model output or upload another MRI to re-run the analysis.
+                  </div>
                 </div>
                 <div class="flex flex-col gap-2">
-                  <button id="download-btn" class="px-3 py-1 rounded-md bg-primary text-white text-sm">Download</button>
-                  <button id="reset-btn" class="px-3 py-1 rounded-md border border-gray-300 text-sm">Reset</button>
+                  <button id="download-btn" class="px-3 py-1.5 rounded-md bg-primary text-white text-xs font-semibold shadow-sm">
+                    Download summary
+                  </button>
+                  <button id="reset-btn" class="px-3 py-1.5 rounded-md border border-gray-300 text-xs font-semibold">
+                    New study
+                  </button>
                 </div>
               </div>
             </div>
-          </div>
 
+            <!-- Explanation / disclaimer -->
+            <div id="disclaimer-card" class="p-3 rounded-xl bg-slate-50 border border-slate-200 shadow-sm card-animate">
+              <div class="text-xs font-semibold text-slate-800 mb-1.5">
+                Interpretation notes
+              </div>
+              <p id="explain-text" class="text-[11px] text-slate-600 leading-snug">
+                This system is a deep learning research prototype intended to support education and
+                exploratory analysis. It does not represent a segmented tumor boundary and must not 
+                be used as a definitive diagnostic
+                marker or to replace expert radiologic interpretation.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
     </main>
 
-    <footer class="mt-6 text-center text-xs text-gray-500">Model powered by your local backend • Tip: adjust heatmap blend & opacity for best visibility</footer>
+    <footer class="mt-6 text-center text-[11px] text-gray-500 leading-snug">
+      This interface is for research and educational purposes only and has not undergone regulatory
+      approval or formal clinical validation. Model outputs must not be used as the sole basis for
+      diagnosis or treatment decisions.
+      <br/>
+    </footer>
   </div>
 
 <script>
@@ -280,7 +382,7 @@ function safeRemoveClass(el, cls) { if (el) el.classList.remove(cls); }
 
 /* ---------- Timeline helpers ---------- */
 function setTimelineStep(step) {
-  for (let i=0; i<totalSteps; i++) {
+  for (let i = 0; i < totalSteps; i++) {
     const dot = $id(`dot-${i}`);
     if (!dot) continue;
     if (i <= step) dot.classList.add('active'); else dot.classList.remove('active');
@@ -292,12 +394,12 @@ function applyAnimations(enabled) {
   const cards = document.querySelectorAll('.card-animate');
   cards.forEach((c, idx) => {
     c.classList.remove('in');
-    if (enabled) setTimeout(()=>c.classList.add('in'), 80*idx);
+    if (enabled) setTimeout(() => c.classList.add('in'), 80 * idx);
     else c.classList.add('in');
   });
 }
 if (animationsToggle) {
-  animationsToggle.addEventListener('change', (e)=>{
+  animationsToggle.addEventListener('change', (e) => {
     localStorage.setItem('animationsEnabled', e.target.checked ? '1' : '0');
     applyAnimations(e.target.checked);
   });
@@ -307,10 +409,13 @@ if (animationsToggle) {
 function applyDark(enabled) {
   document.documentElement.setAttribute('data-theme', enabled ? 'dark' : 'light');
   localStorage.setItem('darkMode', enabled ? '1' : '0');
-  if (enabled) document.body.style.background = 'linear-gradient(180deg,#0b1020,#1a1b2b)';
-  else document.body.style.background = '';
+  if (enabled) {
+    document.body.classList.add('dark-bg');
+  } else {
+    document.body.classList.remove('dark-bg');
+  }
 }
-if (darkToggle) darkToggle.addEventListener('change', (e)=> applyDark(e.target.checked));
+if (darkToggle) darkToggle.addEventListener('change', (e) => applyDark(e.target.checked));
 
 /* ---------- Heatmap prefs ---------- */
 function loadHeatmapPrefs() {
@@ -320,7 +425,7 @@ function loadHeatmapPrefs() {
   blendModeSelect.value = blend;
   opacityRange.value = op;
   heatmapOverlay.style.mixBlendMode = blend;
-  heatmapOverlay.style.opacity = (op/100).toString();
+  heatmapOverlay.style.opacity = (op / 100).toString();
 }
 if (blendModeSelect) blendModeSelect.addEventListener('change', () => {
   if (!heatmapOverlay) return;
@@ -331,16 +436,16 @@ if (blendModeSelect) blendModeSelect.addEventListener('change', () => {
 if (opacityRange) opacityRange.addEventListener('input', () => {
   if (!heatmapOverlay) return;
   const v = parseInt(opacityRange.value, 10);
-  heatmapOverlay.style.opacity = (v/100).toString();
+  heatmapOverlay.style.opacity = (v / 100).toString();
   localStorage.setItem('heatmapOpacity', v.toString());
 });
 if (heatmapToggle) heatmapToggle.addEventListener('change', () => {
   if (!heatmapOverlay || !opacityRange) return;
-  heatmapOverlay.style.opacity = heatmapToggle.checked ? (opacityRange.value/100).toString() : '0';
+  heatmapOverlay.style.opacity = heatmapToggle.checked ? (opacityRange.value / 100).toString() : '0';
 });
 
 /* ---------- Init on DOM ready ---------- */
-window.addEventListener('DOMContentLoaded', ()=>{
+window.addEventListener('DOMContentLoaded', () => {
   const dark = localStorage.getItem('darkMode') === '1';
   if (darkToggle) { darkToggle.checked = dark; applyDark(dark); }
   const anim = localStorage.getItem('animationsEnabled') !== '0';
@@ -354,11 +459,158 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
   // safe event listeners for download/reset buttons
   if (resetBtn) resetBtn.addEventListener('click', resetApp);
-  if (downloadBtn) downloadBtn.addEventListener('click', ()=>{
-    const txt = `Prediction: ${classText ? classText.textContent : '—'}\nConfidence: ${confidenceText ? confidenceText.textContent : '—'}`;
-    const blob = new Blob([txt], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'prediction.txt'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+
+  if (downloadBtn) downloadBtn.addEventListener('click', async () => {
+    const jspdfLib = window.jspdf;
+    if (!jspdfLib || !jspdfLib.jsPDF) {
+      alert("PDF library failed to load.");
+      return;
+    }
+
+    const { jsPDF } = jspdfLib;
+    const pdf = new jsPDF({ unit: "pt", format: "a4" });
+
+    const margin = 40;
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const maxTextWidth = pageWidth - margin * 2;
+
+    const now = new Date();
+    const timestamp = now.toLocaleString();
+
+    const predClass = classText ? (classText.textContent || '—') : '—';
+    const predConf = confidenceText ? (confidenceText.textContent || '—') : '—';
+
+    const classProbs = window.lastProbs || {
+      "Glioma": "-",
+      "Meningioma": "-",
+      "No Tumor": "-",
+      "Pituitary": "-"
+    };
+
+    // ------------------ PAGE 1: TEXT REPORT ------------------
+    let y = margin;
+
+    pdf.setFont("Helvetica", "bold");
+    pdf.setFontSize(14);
+    pdf.text("Brain Tumor MRI Classifier — AI Output Report", margin, y);
+    y += 24;
+
+    pdf.setFont("Helvetica", "normal");
+    pdf.setFontSize(11);
+
+    const report =
+`Study Information
+-----------------
+Report Generated : ${timestamp}
+
+Prediction Summary
+------------------
+Predicted Category : ${predClass}
+Model Confidence   : ${predConf}
+
+Class Probabilities
+-------------------
+Glioma      : ${classProbs["Glioma"]}%
+Meningioma  : ${classProbs["Meningioma"]}%
+No Tumor    : ${classProbs["No Tumor"]}%
+Pituitary   : ${classProbs["Pituitary"]}%
+
+Model Details
+--------------
+Model Architecture : ResNet-50
+Output Classes     : 4 (Glioma, Meningioma, No Tumor, Pituitary)
+Framework          : PyTorch (Flask backend)
+Version            : v1.0
+
+Technical Notes
+----------------
+• The model evaluates a single 2D MRI slice.
+• Confidence values represent neural network softmax probabilities.
+• Grad-CAM heatmap (if shown) highlights regions influencing prediction.`;
+
+    const lines = pdf.splitTextToSize(report, maxTextWidth);
+    pdf.text(lines, margin, y);
+
+    // ------------------ PAGE 2: IMAGES ------------------
+    pdf.addPage();
+    let y2 = margin;
+
+    pdf.setFont("Helvetica", "bold");
+    pdf.setFontSize(13);
+    pdf.text("Imaging Overview", margin, y2);
+    y2 += 24;
+
+    // Ensure we have an MRI image to embed
+    if (!imagePreview || !imagePreview.src) {
+      pdf.setFont("Helvetica", "normal");
+      pdf.setFontSize(11);
+      pdf.text("No MRI image available to embed in this report.", margin, y2);
+    } else {
+
+      // Helper to determine image format from data URL
+      function detectFormat(dataUrl) {
+        if (dataUrl.startsWith("data:image/png")) return "PNG";
+        if (dataUrl.startsWith("data:image/jpeg") || dataUrl.startsWith("data:image/jpg")) return "JPEG";
+        return "JPEG"; // fallback
+      }
+
+      const mriData = imagePreview.src;
+      const mriFormat = detectFormat(mriData);
+
+      // Compute sizing preserving aspect ratio
+      const mriAspect = (imagePreview.naturalHeight && imagePreview.naturalWidth)
+        ? (imagePreview.naturalHeight / imagePreview.naturalWidth)
+        : 0.75; // fallback aspect ratio
+
+      // smaller, centered MRI
+      const mriWidth = 250;
+      const mriHeight = mriWidth * mriAspect;
+      const xPosMRI = (pageWidth - mriWidth) / 2;
+
+      pdf.setFont("Helvetica", "normal");
+      pdf.setFontSize(11);
+      pdf.text("Original MRI slice:", margin, y2);
+      y2 += 14;
+
+      pdf.addImage(mriData, mriFormat, xPosMRI, y2, mriWidth, mriHeight);
+      y2 += mriHeight + 20;
+
+      // Add visualization / heatmap if available
+      if (heatmapOverlay && heatmapOverlay.src) {
+        const heatData = heatmapOverlay.src;
+        const heatFormat = detectFormat(heatData);
+
+        const heatAspect = (heatmapOverlay.naturalHeight && heatmapOverlay.naturalWidth)
+          ? (heatmapOverlay.naturalHeight / heatmapOverlay.naturalWidth)
+          : mriAspect;
+
+        const heatWidth = 250;
+        const heatHeight = heatWidth * heatAspect;
+        const xPosHeat = (pageWidth - heatWidth) / 2;
+
+        // If not enough space on current page, add a new page
+        if (y2 + heatHeight + 40 > pageHeight) {
+          pdf.addPage();
+          y2 = margin;
+        }
+
+        pdf.setFont("Helvetica", "normal");
+        pdf.setFontSize(11);
+        pdf.text("Model attention visualization (heatmap):", margin, y2);
+        y2 += 14;
+
+        pdf.addImage(heatData, heatFormat, xPosHeat, y2, heatWidth, heatHeight);
+        y2 += heatHeight + 10;
+      } else {
+        pdf.setFont("Helvetica", "italic");
+        pdf.setFontSize(10);
+        pdf.text("No attention heatmap/visualization was available at the time of export.", margin, y2);
+      }
+    }
+
+    // ------------------ SAVE PDF ------------------
+    pdf.save("brain_tumor_model_report.pdf");
   });
 });
 
@@ -366,7 +618,10 @@ window.addEventListener('DOMContentLoaded', ()=>{
 function resetApp() {
   if (imagePreviewContainer) imagePreviewContainer.classList.add('hidden');
   if (loader) loader.classList.add('hidden');
-  if (resultDiv) { resultDiv.className = 'text-center p-4 rounded-xl bg-white/60 text-gray-700 font-semibold shadow-inner'; resultDiv.innerHTML = 'Upload an image to start classification.'; }
+  if (resultDiv) {
+    resultDiv.className = 'text-center p-4 rounded-xl bg-white/70 text-slate-800 font-semibold shadow-inner text-sm';
+    resultDiv.innerHTML = 'Upload a brain MRI scan to view the model’s output.';
+  }
   if (confidenceBar) confidenceBar.style.width = '0%';
   if (confidenceText) confidenceText.textContent = '0%';
   if (classText) classText.textContent = '—';
@@ -379,7 +634,10 @@ function resetApp() {
 
 function showError(message) {
   if (loader) loader.classList.add('hidden');
-  if (resultDiv) { resultDiv.className = 'text-center p-4 rounded-xl bg-red-100 text-red-700 font-extrabold shadow-lg border-2 border-red-300'; resultDiv.innerHTML = `❌ Error: ${message}`; }
+  if (resultDiv) {
+    resultDiv.className = 'text-center p-4 rounded-xl bg-red-100 text-red-700 font-semibold shadow-lg border border-red-300 text-sm';
+    resultDiv.innerHTML = `Error: ${message}`;
+  }
   if (confidenceBar) confidenceBar.style.width = '0%';
   if (confidenceText) confidenceText.textContent = '0%';
   if (classText) classText.textContent = '—';
@@ -394,8 +652,13 @@ function showResults(data) {
   setTimelineStep(4);
 
   if (!data || (data.prediction && data.prediction.startsWith && data.prediction.startsWith('ERROR'))) {
-    showError(`Prediction failed. Server said: ${data ? data.prediction : 'No response'}`);
+    showError(`Prediction failed. Server response: ${data ? data.prediction : 'No response'}`);
     return;
+  }
+
+  // store probabilities for PDF report
+  if (data && data.all_confidences) {
+    window.lastProbs = data.all_confidences;
   }
 
   const prediction = data.prediction || 'Unknown';
@@ -406,12 +669,24 @@ function showResults(data) {
   if (confidenceText) confidenceText.textContent = `${Math.min(Math.max(confidence, 0), 100).toFixed(2)}%`;
 
   if (resultDiv) {
-    resultDiv.className = 'text-center p-4 rounded-xl bg-white/70 text-gray-800 font-extrabold shadow-lg border';
-    if (prediction === 'No Tumor') resultDiv.innerHTML = `✅ <strong>No Tumor Detected</strong>`;
-    else resultDiv.innerHTML = `🚨 <strong>Tumor Detected:</strong> ${prediction}`;
+    resultDiv.className = 'text-center p-4 rounded-xl bg-white/80 text-slate-900 font-semibold shadow-lg border text-sm';
+    if (prediction === 'No Tumor') {
+      resultDiv.innerHTML =
+        '<span class="block font-bold mb-1">No tumor-like lesion detected by the model.</span>' +
+        '<span class="block text-[11px] text-gray-600">Absence of model-detected tumor does not exclude pathology. ' +
+        'Please interpret in conjunction with full imaging review and clinical information.</span>';
+    } else {
+      resultDiv.innerHTML =
+        `<span class="block font-bold mb-1">Model suggests a tumor pattern consistent with: ${prediction}.</span>` +
+        '<span class="block text-[11px] text-gray-600">This represents an automated pattern recognition output, not a ' +
+        'definitive diagnosis. Radiologist review and clinical correlation are essential.</span>';
+    }
   }
 
-  if (explainText) explainText.textContent = data.explanation || 'Model returned labels and confidence. Enable heatmap to view Grad-CAM overlay if available.';
+  if (explainText && data.explanation) {
+    explainText.textContent = data.explanation;
+  }
+
   applyAnimations((animationsToggle && animationsToggle.checked) || false);
 
   // heatmap handling
@@ -419,7 +694,10 @@ function showResults(data) {
     heatmapOverlay.src = data.heatmap;
     if (heatmapControls) safeRemoveClass(heatmapControls, 'hidden');
     loadHeatmapPrefs();
-    if (heatmapToggle) { heatmapToggle.checked = true; heatmapOverlay.style.opacity = (opacityRange ? opacityRange.value/100 : 0.75).toString(); }
+    if (heatmapToggle) {
+      heatmapToggle.checked = true;
+      heatmapOverlay.style.opacity = (opacityRange ? opacityRange.value / 100 : 0.75).toString();
+    }
     if (blendModeSelect) heatmapOverlay.style.mixBlendMode = blendModeSelect.value || 'multiply';
   } else {
     if (heatmapOverlay) { heatmapOverlay.src = ''; heatmapOverlay.style.opacity = '0'; }
@@ -435,9 +713,9 @@ async function runPrediction(file) {
 
   try {
     setTimelineStep(0);
-    await new Promise(r=>setTimeout(r, 200));
+    await new Promise(r => setTimeout(r, 200));
     setTimelineStep(1);
-    await new Promise(r=>setTimeout(r, 450));
+    await new Promise(r => setTimeout(r, 450));
 
     const formData = new FormData(); formData.append('image', file);
     setTimelineStep(2);
@@ -445,13 +723,13 @@ async function runPrediction(file) {
 
     if (!response.ok) {
       const txt = await response.text();
-      showError(`Server responded ${response.status}. ${txt.substring(0,120)}...`);
+      showError(`Server responded with status ${response.status}. ${txt.substring(0, 120)}…`);
       return;
     }
 
     setTimelineStep(3);
     const data = await response.json();
-    await new Promise(r=>setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 300));
     showResults(data);
 
   } catch (err) {
@@ -465,10 +743,10 @@ function handleImageUpload(event) {
   const file = event.target.files && event.target.files[0];
   resetApp();
   if (!file) return;
-  if (!file.type.startsWith('image/')) { showError('Please upload an image file.'); return; }
+  if (!file.type.startsWith('image/')) { showError('Please upload a valid image file (JPG / PNG).'); return; }
 
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = function (e) {
     if (imagePreview) imagePreview.src = e.target.result;
     if (imagePreviewContainer) imagePreviewContainer.classList.remove('hidden');
     runPrediction(file);
@@ -482,13 +760,20 @@ async function checkServerStatus() {
     const response = await fetch(STATUS_ENDPOINT);
     const data = await response.json();
     if (response.ok && data.status === 'Model Ready') {
-      if (serverStatus) { serverStatus.textContent = 'Server Status: Live'; serverStatus.className = 'mt-2 text-xs font-semibold py-1 px-3 rounded-full inline-block bg-success text-white shadow-md'; }
+      if (serverStatus) {
+        serverStatus.textContent = 'Model status: Ready';
+        serverStatus.className =
+          'mt-2 text-xs font-semibold py-1 px-3 rounded-full inline-block bg-success text-white shadow-md';
+      }
     } else throw new Error('Server not ready');
   } catch (err) {
-    if (serverStatus) { serverStatus.textContent = 'Server Status: Offline'; serverStatus.className = 'mt-2 text-xs font-semibold py-1 px-3 rounded-full inline-block bg-red-500 text-white shadow-md'; }
+    if (serverStatus) {
+      serverStatus.textContent = 'Model status: Offline';
+      serverStatus.className =
+        'mt-2 text-xs font-semibold py-1 px-3 rounded-full inline-block bg-danger text-white shadow-md';
+    }
   }
 }
-
 </script>
 </body>
 </html>
