@@ -37,8 +37,8 @@ To download the Brain Tumor Dataset:
 ## Downloading weights for resnet 50 model:
 
 Refer to the releases for manually downloading the trained weights  
-OR
-Download it through this google drive link:
+OR  
+Download it through this google drive link:  
      tumor_resnet50.pth file-->   https://drive.google.com/file/d/1lJ4LhbfBIJvlGG8alNp0JAymEpvwpXt9/view?usp=sharing
 
 ## Acknowledgements
