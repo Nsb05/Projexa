@@ -15,10 +15,10 @@ from tqdm import tqdm
 
 # ------------------ config ------------------
 DATA_ROOT = 'C:/Users/Neeraj/Downloads/archive/'  # update as needed
-BATCH_SIZE = 8         # ResNet-50 is larger; reduce batch if OOM. Adjust to your GPU memory.
-NUM_EPOCHS = 3         # train longer when fine-tuning
+BATCH_SIZE = 8         # ResNet-50 is larger. Adjust to your GPU memory.
+NUM_EPOCHS = 5         # train longer when fine-tuning
 IMG_SIZE = 224
-HIDDEN_UNITS = 512     # suggestion: bigger head for ResNet-50 (you can keep 256 if you prefer)
+HIDDEN_UNITS = 512     # suggestion: bigger head for ResNet-50
 UNFREEZE_LAYER4 = True  # unfreeze layer4 for fine-tuning
 USE_SAMPLER = False     # try True if classes are heavily imbalanced
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
