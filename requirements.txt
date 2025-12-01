@@ -1,13 +1,7 @@
-flask
-Pillow
+Flask
 flask-cors
-torch
-torchvision
-numpy
-pandas
-matplotlib
+gunicorn
+Pillow
 opencv-python
-scikit-learn
 PyYAML
 tqdm
-gunicorn
