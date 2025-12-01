@@ -717,7 +717,7 @@ async function runPrediction(file) {
     setTimelineStep(1);
     await new Promise(r => setTimeout(r, 450));
 
-    const formData = new FormData(); formData.append('image', file);
+    const formData = new FormData(); formData.append('file', file);
     setTimelineStep(2);
     const response = await fetch(API_ENDPOINT, { method: 'POST', body: formData });
 
@@ -777,3 +777,4 @@ async function checkServerStatus() {
 </script>
 </body>
 </html>
+
