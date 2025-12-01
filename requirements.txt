@@ -1,3 +1,6 @@
+flask
+Pillow
+flask-cors
 torch
 torchvision
 numpy
@@ -7,5 +10,3 @@ opencv-python
 scikit-learn
 PyYAML
 tqdm
-pillow
-gunicorn
