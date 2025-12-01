@@ -1,5 +1,5 @@
-# Use an official Python runtime as a parent image
-FROM python:3.11-slim
+# Base image with CPU-only PyTorch + torchvision + numpy already installed
+FROM pytorch/pytorch:2.2.0-cpu
 
 # Prevent Python from writing .pyc files and buffering stdout
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -10,27 +10,25 @@ WORKDIR /app
 
 # Install system dependencies needed by opencv, etc.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python dependencies
+# Copy requirements and install ONLY the light Python deps
 COPY requirements.txt .
 
 RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the project (including app.py and .pth model)
+# Copy your project (app.py, model .pth, templates, static, etc.)
 COPY . .
 
-# Railway sets PORT env; default to 8000 for local runs
+# Railway uses PORT env; default to 8000 for local
 ENV PORT=8000
 
-# Expose the port (not strictly needed for Railway but nice for local)
 EXPOSE 8000
 
-# Start the Flask app via gunicorn
+# Start Flask via gunicorn
 CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:${PORT}"]
