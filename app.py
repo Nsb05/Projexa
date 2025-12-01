@@ -11,7 +11,8 @@ import base64
 # ------------------------------------------------------------------
 # Configuration
 # ------------------------------------------------------------------
-MODEL_PATH = 'tumor_resnet50.pth'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "tumor_resnet50.pth")
 IMG_SIZE = 224
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -35,8 +36,10 @@ class ResNet50Classifier(nn.Module):
             else:
                 model = models.resnet50(weights=None)
         except Exception:
+            # fallback for older torchvision
             model = models.resnet50(pretrained=use_pretrained)
 
+        # freeze all layers except layer4 + fc
         for name, param in model.named_parameters():
             param.requires_grad = False
             if name.startswith("layer4") or name.startswith("fc"):
@@ -83,7 +86,6 @@ def generate_gradcam_overlay(model_wrapper, input_tensor, target_index, orig_img
 
     # register hooks
     handle_fwd = target_layer.register_forward_hook(forward_hook)
-    # use full_backward_hook if available
     try:
         handle_bwd = target_layer.register_full_backward_hook(backward_hook)
     except AttributeError:
@@ -126,10 +128,10 @@ def generate_gradcam_overlay(model_wrapper, input_tensor, target_index, orig_img
     cam_np = cam_np - cam_np.min()
     cam_np = cam_np / (cam_np.max() + 1e-6)
 
-    # (optional) sharpen to emphasize high-activation regions
+    # sharpen a bit
     cam_np = cam_np ** 1.5
 
-    # keep only top 20% activations (everything else becomes near-zero)
+    # keep only top 20% activations
     thr = np.percentile(cam_np, 80.0)
     cam_np = np.where(cam_np >= thr, cam_np, 0.0)
 
@@ -139,10 +141,10 @@ def generate_gradcam_overlay(model_wrapper, input_tensor, target_index, orig_img
     cam_pil = cam_pil.resize((orig_img.size[0], orig_img.size[1]), resample=Image.BILINEAR)
     cam_np_resized = np.array(cam_pil, dtype=np.float32) / 255.0  # back to [0,1]
 
-    # simple "jet-like" colormap for visualization
+    # simple "jet-like" colormap
     v = cam_np_resized
     r = (255 * v).clip(0, 255)
-    g = (255 * (1.0 - np.abs(v - 0.5) * 2.0)).clip(0, 255)  # high in mid-range
+    g = (255 * (1.0 - np.abs(v - 0.5) * 2.0)).clip(0, 255)
     b = (255 * (1.0 - v)).clip(0, 255)
 
     heatmap_rgb = np.stack([r, g, b], axis=-1).astype(np.uint8)  # [H,W,3]
@@ -216,16 +218,18 @@ def load_model():
     if model is None:
         print(f"Attempting to load ResNet-50 model from: {MODEL_PATH} on device: {device}")
         try:
-            model = ResNet50Classifier(num_classes=len(CLASSES), hidden_units=512, use_pretrained=True)
-            ok = try_load_state_dict(model.model, MODEL_PATH, device)
+            m = ResNet50Classifier(num_classes=len(CLASSES), hidden_units=512, use_pretrained=True)
+            ok = try_load_state_dict(m.model, MODEL_PATH, device)
             if not ok:
                 raise RuntimeError("Failed to load state_dict into model. See logs above for details.")
-            model.to(device)
-            model.eval()
+            m.to(device)
+            m.eval()
+            model = m
             print("Model loaded successfully and set to eval mode.")
         except Exception:
             print("FATAL ERROR loading model:")
             traceback.print_exc()
+            # On Railway, process exit will cause container to restart
             os._exit(1)
 
 @app.route('/status', methods=['GET'])
@@ -237,12 +241,13 @@ def status():
 # ------------------------------------------------------------------
 @app.route('/predict', methods=['POST'])
 def predict():
-    if 'image' not in request.files:
-        return jsonify({"error": "No image uploaded."}), 400
+    # Accept either "file" (recommended for frontend) or fallback "image"
+    uploaded_file = request.files.get('file') or request.files.get('image')
+    if uploaded_file is None:
+        return jsonify({"error": "No image uploaded. Use 'file' field in form-data."}), 400
 
     try:
-        file = request.files['image']
-        img_bytes = file.read()
+        img_bytes = uploaded_file.read()
         img = Image.open(io.BytesIO(img_bytes))
 
         # quick validation
@@ -250,6 +255,7 @@ def predict():
             return jsonify({"error": "Please upload a valid brain MRI image."}), 400
         if img.width < 100 or img.height < 100:
             return jsonify({"error": "Image too small (min 100×100)."}), 400
+
         img_arr = np.array(img.convert('L'))
         mean_intensity = img_arr.mean()
         if mean_intensity < 5 or mean_intensity > 250:
@@ -301,9 +307,11 @@ def predict():
         return jsonify({
             "prediction": "ERROR (Check Server Logs)",
             "confidence": 0.0
-        })
+        }), 500
 
 # ------------------------------------------------------------------
 if __name__ == '__main__':
+    # Local dev: preload model once, bind to PORT if provided
     load_model()
-    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=True, host='0.0.0.0', port=port, use_reloader=False)
